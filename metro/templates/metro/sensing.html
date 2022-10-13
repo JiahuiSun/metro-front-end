@@ -1,0 +1,281 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>车辆感知调度演示系统</title>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <!-- Include Leaflet CSS file in the head section -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.7.1/dist/leaflet.css"
+    integrity="sha512-xodZBNTC5n17Xt2atTPuE1HxjVMSvLVW9ocqUKLsCC5CXdbqCmblAshOMAS6/keqq/sMZMZ19scR4PsZChSR7A=="
+    crossorigin=""/>
+    <!-- Make sure you put this AFTER Leaflet's CSS -->
+    <script src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js"
+    integrity="sha512-XQoYMqMTK8LvdxXYG3nZ448hOEQiglfqkJs1NOQV44cWnUrBc8PkAOcXy20w0vlaXaVUearIOBhiXZ5V3ynxwA=="
+    crossorigin=""></script>
+    <style type="text/css">
+        html, body{
+           height: 100%;
+           padding: 0;
+           margin: 0;
+        }
+        body {
+           background: #061537;
+        }
+        .sensing-container {
+           position: relative;
+           width: 95%;
+           margin: auto;
+           min-width: 780px;
+           /* height: 100%; */
+           padding: 24px;
+        }
+        header {
+           text-align: center;
+           font-size: 40px;
+           background: linear-gradient(0deg,#0095d6, #46daff);
+           -webkit-background-clip: text;
+           -webkit-text-fill-color: transparent;
+           font-weight: 700;
+           margin-bottom: 50px;
+        }
+        section {
+            display: flex;
+            height: calc(50vh - 140px);
+            justify-content: space-between;
+            margin-bottom: 24px;
+        }
+        .title-section {
+            height: auto;
+        }
+        h3 {
+            text-align: center;
+            color: #fff;
+            margin: 0;
+            width: calc(49% - 75px);
+        }
+        h2 {
+            color: #fff;
+            width: 150px;
+            font-size: 20px;
+            margin: 0;
+        }
+        .metric1 {
+            margin-top: 110px;
+        }
+        .metric2 {
+            margin-top: 90px;
+        }
+        .map {
+            height: 100%;
+            width: calc(49% - 75px);
+        }
+        .time-filter {
+            position: absolute;
+            top: 34px;
+            right: 24px;
+        }
+        .form-group {
+            display: inline-block;
+            vertical-align: middle;
+        }
+        .input-item {
+            display: inline-block;
+            width: auto;
+        }
+        .form-control {
+            margin-right: 8px;
+        }
+        .form-control, .custom-select {
+            width: 120px !important;
+            cursor: pointer;
+            background: #343a40!important;
+            border: 1px solid #ced4da;
+            border-radius: 4px;
+            color: #f8f9fa!important;
+            font-size: 16px;
+            height: 30px;
+            line-height: 16px;
+        }
+        .btn {
+            color: #fff;
+            background-color: #343a40;
+            border: none;
+            border-radius: 4px;
+            font-size: 14px;
+            padding: 4px 8px;
+            vertical-align: baseline;
+            margin-left: 18px;
+            cursor: pointer;
+        }
+        .btn:hover {
+            background-color: #23272b;
+            border: none;
+        }
+    </style>
+</head>
+<body>
+    <div class="sensing-container">
+        <header>车辆感知调度演示系统</header>
+        <div class="time-filter">
+            <form class="form-inline" action="{% url 'sensing' %}" method="post">
+                {% csrf_token %}
+                <div class="form-group mb-2">
+                    <select class=" form-control custom-select bg-dark text-light selectpicker show-tick" name="page_date" id="inputGroupSelect02">
+                        <option selected>{{ page_date }}</option>
+                        <option value="2017-06-01">2017-06-01</option>
+                        <option value="2017-06-01">2017-06-01</option>
+                        <option value="2017-06-01">2017-06-01</option>
+                        <option value="2017-06-01">2017-06-01</option>
+                        <option value="2017-06-01">2017-06-01</option>
+                        <option value="2017-06-01">2017-06-01</option>
+                    </select>
+                    <select class="custom-select mx-sm-3" name="page_time" id="inputGroupSelect02">
+                        <option selected>{{ page_time }}</option>
+                        <option value="11:00:00">11:00:00</option>
+                        <option value="12:00:00">12:00:00</option>
+                        <option value="13:00:00">13:00:00</option>
+                        <option value="14:00:00">14:00:00</option>
+                        <option value="15:00:00">15:00:00</option>
+                        <option value="16:00:00">16:00:00</option>
+                        <option value="17:00:00">17:00:00</option>
+                        <option value="18:00:00">18:00:00</option>
+                        <option value="19:00:00">19:00:00</option>
+                        <option value="20:00:00">20:00:00</option>
+                        <option value="21:00:00">21:00:00</option>
+                        <option value="22:00:00">22:00:00</option>
+                    </select>
+                </div>
+                <button type="submit" class="btn btn-dark mb-2">更 改</button>
+            </form>
+        </div>
+        <section class="title-section">
+            <!-- 占位符 -->
+            <h2></h2>
+            <h3>GCC-MARL</h3>
+            <h3>Central-V</h3>
+        </section>
+        <section>
+            <div class='metric1'>
+            <h2>感知收益</h2>
+            </div>
+            <div id="map1" class="map"></div>
+            <div id="map2" class="map"></div>
+        </section>
+        <section>
+            <div class='metric2'>
+            <h2>订单<br/>供需差异</h2>
+            </div>
+            <div id="map3" class="map"></div>
+            <div id="map4" class="map"></div>
+        </section>
+    </div>
+
+
+<script type="text/javascript">
+    var map1 = L.map('map1', {
+        zoom: 13,
+        center: [22.570353, 113.8888418]
+    });
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+    }).addTo(map1);
+    {% for road, info in sensing_ours.items %}
+        var polyline = L.polyline(
+            {{ info.shape }},
+            {color: '{{ info.color }}',
+             weight: 3}
+        ).addTo(map1);
+
+        polyline.on('mouseover', function (ev) {
+            ev.target.setStyle({
+                weight: 7,
+            });
+        });
+        polyline.on('mouseout', function (ev) {
+            ev.target.setStyle({
+                weight: 3,
+            });
+        });
+    {% endfor %}
+
+    var map2 = L.map('map2', {
+        zoom: 13,
+        center: [22.570353, 113.8888418]
+    });
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+    }).addTo(map2);
+    {% for road, info in sensing_baseline.items %}
+        var polyline = L.polyline(
+            {{ info.shape }},
+            {color: '{{ info.color }}',
+             weight: 3}
+        ).addTo(map2);
+
+        polyline.on('mouseover', function (ev) {
+            ev.target.setStyle({
+                weight: 7,
+            });
+        });
+        polyline.on('mouseout', function (ev) {
+            ev.target.setStyle({
+                weight: 3,
+            });
+        });
+    {% endfor %}
+
+    var map3 = L.map('map3', {
+        zoom: 13,
+        center: [22.570353, 113.8888418]
+    });
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+    }).addTo(map3);
+    {% for road, info in order_ours.items %}
+        var polyline = L.polyline(
+            {{ info.shape }},
+            {color: '{{ info.color }}',
+             weight: 3}
+        ).addTo(map3);
+
+        polyline.on('mouseover', function (ev) {
+            ev.target.setStyle({
+                weight: 7,
+            });
+        });
+        polyline.on('mouseout', function (ev) {
+            ev.target.setStyle({
+                weight: 3,
+            });
+        });
+    {% endfor %}
+
+    var map4 = L.map('map4', {
+        zoom: 13,
+        center: [22.570353, 113.8888418]
+    });
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+    }).addTo(map4);
+    {% for road, info in order_baseline.items %}
+        var polyline = L.polyline(
+            {{ info.shape }},
+            {color: '{{ info.color }}',
+             weight: 3}
+        ).addTo(map4);
+
+        polyline.on('mouseover', function (ev) {
+            ev.target.setStyle({
+                weight: 7,
+            });
+        });
+        polyline.on('mouseout', function (ev) {
+            ev.target.setStyle({
+                weight: 3,
+            });
+        });
+    {% endfor %}
+
+</script>
+</body>
+</html>

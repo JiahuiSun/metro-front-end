@@ -1,0 +1,330 @@
+<!doctype html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="initial-scale=1.0, user-scalable=no, width=device-width">
+    <title>地铁流量预测</title>
+    <link rel="stylesheet" href="https://a.amap.com/jsapi_demos/static/demo-center/css/demo-center.css"/> 
+    <style type="text/css">
+        html, body{
+           height:100%;
+           padding: 0;
+        }
+        body {
+           background: #061537;
+        }
+        .metro-container {
+           width: 80%;
+           margin: auto;
+           min-width: 780px;
+           height: 100%;
+           padding: 24px;
+        }
+        header {
+           text-align: center;
+           font-size: 40px;
+           background: linear-gradient(0deg,#0095d6, #46daff);
+           -webkit-background-clip: text;
+           -webkit-text-fill-color: transparent;
+           font-weight: 700;
+           margin-bottom: 50px;
+        }
+        section {
+            height: 80%;
+            min-height: 400px;
+            display: flex;
+            justify-content: space-between;
+        }
+        .layout-left, .layout-right {
+            width: 49%;
+        }
+        .layout-right {
+            padding: 24px 12px;
+            /* border: 1px solid #345f92; */
+            background: rgba(16,54,87,0.5);
+            border-radius: 4px;
+        }
+        #metroMap {
+            height: 100%;
+            border-radius: 4px;
+            /* border: 1px solid #345f92; */
+            /* #07bcff */
+        }
+        .form-group {
+            display: inline-block;
+            vertical-align: middle;
+        }
+        .input-item {
+            display: inline-block;
+            width: auto;
+        }
+        .form-control {
+            cursor: pointer;
+            margin-right: 8px;
+        }
+        .form-control, #BusLineName {
+            width: 120px !important;
+            background: #343a40!important;
+            border: 1px solid #ced4da;
+            border-radius: 4px;
+            color: #f8f9fa!important;
+            font-size: 16px;
+            height: 30px;
+            line-height: 16px;
+        }
+        .btn {
+            color: #fff;
+            background-color: #343a40;
+            border-color: #343a40;
+            border-radius: 4px;
+            font-size: 14px;
+            padding: 4px 8px;
+            vertical-align: baseline;
+            margin-left: 18px;
+        }
+        .btn:hover {
+            background-color: #23272b;
+            border-color: #1d2124;
+        }
+        .line-map {
+            height: 40%;
+            margin-top: 12px;
+        }
+    </style>
+</head>
+<body>
+    <p>{{ station_flow_avg.outflow }}</p>
+    <p>{{ station_flow_avg.outflow|length }}</p>
+    <p>{{ station_flow_avg.x }}</p>
+
+    <div class="metro-container">
+        <header>深圳市地铁流量数据可视化</header>
+        <section>
+            <!-- metro数据地图 -->
+            <div id="metroMap" class="layout-left"></div>
+            <div class="layout-right">
+                <!-- 时间筛选器 -->
+                <div class="time-filter">
+                    <!-- 下拉框定义 -->
+                    <form class="form-inline">
+                        <div class="form-group mb-2">
+                            <div class="input-item">
+                            <!-- <span class="input-item-text" >日期选择</span> -->
+                            <select class="form-control custom-select bg-dark text-light selectpicker show-tick" name="page_date" id="inputGroupSelect02">
+                                <option selected>2017-06-23</option>
+                                <option value="2017-06-23">2017-06-23</option>
+                                <option value="2017-06-24">2017-06-24</option>
+                                <option value="2017-06-25">2017-06-25</option>
+                                <option value="2017-06-26">2017-06-26</option>
+                                <option value="2017-06-27">2017-06-27</option>
+                                <option value="2017-06-28">2017-06-28</option>
+                                <option value="2017-06-29">2017-06-29</option>
+                            </select>
+                            </div>
+                            <div class="input-item">
+                                    <!-- <div class="input-item-prepend"><span class="input-item-text" >时刻选择</span></div> -->
+                                    <input id='BusLineName' type="text" value='09:30:00' >
+                            </div>
+                        </div>
+                        <button type="submit" class="btn">更 改</button>
+                    </form>
+                </div>
+                <!-- 折线图 -->
+                <div id="line-map-1" class="line-map"></div>
+                <div id="line-map-2" class="line-map"></div>
+            </div>
+        </section>
+    </div>
+
+<script type="text/javascript" src="https://cdn.jsdelivr.net/npm/echarts@5.0.2/dist/echarts.min.js"></script>
+<script type="text/javascript" src="https://webapi.amap.com/maps?v=1.4.15&key=bb3408d06ff2d73767ec1faf309cfcba&plugin=AMap.LineSearch"></script> 
+<script language="javascript">
+    /*
+     * 该示例主要流程分为三个步骤
+     * 1. 首先调用公交路线查询服务(lineSearch)
+     * 2. 根据返回结果解析，输出解析结果(lineSearch_Callback)
+     * 3. 在地图上绘制公交线路()
+     */
+    var map = new AMap.Map("metroMap", {
+        mapStyle: 'amap://styles/dark',
+        expandZoomRange: true,
+        zoom: 14,//级别
+        zooms: [3, 20],
+        center: [113.935197, 22.51659],//中心点坐标
+        features: ['road'],
+        showLabel: true
+    });
+    var chartObj1 = null;
+    var chartObj2 = null;
+    /*公交线路查询*/
+    function lineSearch(metrolines) {
+        for (var i=0; i<metrolines.length;i++) {
+
+            var metroLineName = metrolines[i];
+       
+            //实例化公交线路查询类，只取回一条路线
+            var linesearch = new AMap.LineSearch({
+                pageIndex: 1,
+                city: '深圳',
+                pageSize: 2,
+                extensions: 'all'
+            });
+            
+            //搜索相关地铁线路
+            linesearch.search(metroLineName, function(status, result) {
+                // map.clearMap()
+                if (status === 'complete' && result.info === 'OK') {
+                    lineSearch_Callback(metroLineName, result);
+                } else {
+                    alert(result);
+                }
+            });
+        }
+    }
+
+    /*公交路线查询服务返回数据解析概况*/
+    function lineSearch_Callback(metroLineName, data) {
+        var lineArr = data.lineInfo;
+        var lineNum = data.lineInfo.length;
+        if (lineNum == 0) {
+        } else {
+            for (var i = 0; i < lineNum; i++) {
+                var pathArr = lineArr[i].path;
+                var stops = lineArr[i].via_stops;
+                var startPot = stops[0].location;
+                var endPot = stops[stops.length - 1].location;
+                if (i == 0) //作为示例，只绘制一条线路
+                drawbusLine(metroLineName, stops, pathArr);
+            
+            }
+        }
+    }
+    /*绘制路线*/
+    function drawbusLine(metroLineName, stops, BusArr) {
+        //绘制起点，终点
+        for (var i=0; i<stops.length;i++) {
+            stationMarker = new AMap.Marker({
+                map: map,
+                position: stops[i].location, //基点位置
+                zIndex: 10
+            });
+            var stop_name = stops[i].name
+            var content = ['<div><img src="\"" http:="" webapi.amap.com="" images="" autonavi.png="" \"=""> ',
+                            '<div style="\"padding:0px" 0px="" 4px;\"="">' + stops[i].name + '<b>地铁站</b>',
+                            '<span class="text-danger">过去十分钟人流量为 10 </span><br/>',
+                            '<span class="text-danger">过去十分钟出站流量为 20 </span><br/>',
+                            "<span class='text-danger'>未来十分钟预测出站人流量为 20 </span></div></div>"
+                           ];
+            {% for name, info in station_info.items %}
+                if (stop_name === '{{ name }}') {
+                    content = [
+                        '<div><img src="\"" http:="" webapi.amap.com="" images="" autonavi.png="" \"=""> ',
+                        '<div style="\"padding:0px" 0px="" 4px;\"="">' + stops[i].name + '<b>地铁站</b><br/>',
+                        '<span class="text-danger">过去十分钟入站流量为 {{ info.inflow }}</span><br/>',
+                        '<span class="text-danger">过去十分钟出站流量为 {{ info.outflow }}</span><br/>',
+                        "<span class='text-danger'>未来十分钟预测出站人流量为 {{ info.outflow_pred }}</span></div></div>"
+                        ];
+                }
+            {% endfor %}
+            stationMarker.info = new AMap.InfoWindow({
+                    content: content.join("<br>"),
+                    offset: new AMap.Pixel(0, -30)
+                });
+            stationMarker.on('click', function(e) {
+                e.target.info.open(map, e.target.getPosition())
+            })
+        }
+
+        //绘制乘车的路线
+        metroPolyline = new AMap.Polyline({
+            map: map,
+            path: BusArr,
+            strokeColor: "#09f",//线颜色
+            strokeOpacity: 0.8,//线透明度
+            isOutline:true,
+            outlineColor:'white',
+            strokeWeight: 6//线宽
+        });
+
+        map.setFitView();
+    }
+    
+    // 绘制折线图1
+    function drawFirstLineMap() {
+        var chartDom = document.getElementById('line-map-1');
+        chartObj1 = echarts.init(chartDom);
+        var option;
+        option = {
+            tooltip: {
+                trigger: 'axis'
+            },
+            grid: {
+                left: '6%',
+                right: '6%',
+                bottom: '12%',
+                top: '15%'
+            },
+            xAxis: {
+                // type: 'category',
+                // data: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
+                type: 'value',
+                data: {{ station_flow_avg.x }}
+            },
+            yAxis: {
+                type: 'value'
+            },
+            // TODO: 数据画图？
+            series: [{
+                // data: [150, 230, 224, 218, 135, 147, 260],
+                data: {{ station_flow_avg.outflow }},
+                type: 'line'
+            }]
+        };
+        option && chartObj1.setOption(option);
+    }
+    // 绘制折线图2
+    function drawSecondLineMap() {
+        var chartDom = document.getElementById('line-map-2');
+        chartObj2 = echarts.init(chartDom);
+        var option;
+
+        option = {
+            tooltip: {
+                trigger: 'axis'
+            },
+            grid: {
+                left: '6%',
+                right: '6%',
+                bottom: '12%',
+                top: '15%'
+            },
+            xAxis: {
+                type: 'category',
+                data: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
+            },
+            yAxis: {
+                type: 'value'
+            },
+            series: [{
+                data: [150, 230, 224, 218, 135, 147, 260],
+                type: 'line'
+            }]
+        };
+        option && chartObj2.setOption(option);
+    }
+    // 绘制折线图（封装）
+    function drawLineMap() {
+        drawFirstLineMap()
+        drawSecondLineMap()
+    }
+    lines = ['1号线', '2号线', '3号线', '4号线', '5号线']
+    lineSearch(lines)
+    drawLineMap()
+    window.onresize = function () {
+        chartObj1 && chartObj1.resize();
+        chartObj2 && chartObj2.resize();
+    }
+</script>
+</body>
+</html>
